@@ -1,0 +1,35 @@
+node_modules
+.git
+.env
+data
+output
+dist
+dist-server
+test-results
+playwright-report
+
+# Local credentials, certificates, exports and diagnostic artifacts
+.env.*
+*.env
+*.env.*
+credentials*.json
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+*.db
+*.db-*
+*.sqlite*
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.log
+backups/
+secrets/
+.codex/
+.agents/
+
+# Keep the intentionally empty/example configuration public.
+!.env.example

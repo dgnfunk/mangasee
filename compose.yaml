@@ -1,0 +1,80 @@
+name: mangasee
+services:
+  library-check:
+    image: node:24.21.0-bookworm-slim
+    user: "1000:1000"
+    restart: "no"
+    environment:
+      LIBRARY_SENTINEL_VALUE: ${LIBRARY_SENTINEL_VALUE:-mangasee-library}
+    command:
+      [
+        "node",
+        "-e",
+        "const fs=require('fs');if(fs.readFileSync('/library/.mangasee-library','utf8').trim()!==process.env.LIBRARY_SENTINEL_VALUE)process.exit(1)",
+      ]
+    volumes:
+      - type: bind
+        source: ${LIBRARY_SOURCE:?Set LIBRARY_SOURCE to an existing folder}
+        target: /library
+        read_only: true
+        bind:
+          create_host_path: false
+  komga:
+    image: gotson/komga:1.22.0
+    user: "1000:1000"
+    restart: unless-stopped
+    depends_on:
+      library-check:
+        condition: service_completed_successfully
+    environment:
+      JAVA_TOOL_OPTIONS: -Xmx2g
+    volumes:
+      - ${DATA_ROOT:?Set DATA_ROOT}/komga:/config
+      - type: bind
+        source: ${LIBRARY_SOURCE:?Set LIBRARY_SOURCE to an existing folder}
+        target: /library
+        read_only: true
+        bind:
+          create_host_path: false
+    ports:
+      - "127.0.0.1:25600:25600"
+  app:
+    build: .
+    image: mangasee:0.1.0
+    restart: unless-stopped
+    depends_on:
+      library-check:
+        condition: service_completed_successfully
+      komga:
+        condition: service_started
+    environment:
+      APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD}
+      APP_ORIGIN: ${APP_ORIGIN:?Set APP_ORIGIN}
+      DEMO_MODE: "false"
+      KOMGA_URL: http://komga:25600
+      KOMGA_API_KEY: ${KOMGA_API_KEY:?Set KOMGA_API_KEY}
+      LIBRARY_SENTINEL: /library/.mangasee-library
+      LIBRARY_SENTINEL_VALUE: ${LIBRARY_SENTINEL_VALUE:-mangasee-library}
+    volumes:
+      - ${DATA_ROOT}/app:/data
+      - type: bind
+        source: ${LIBRARY_SOURCE:?Set LIBRARY_SOURCE to an existing folder}
+        target: /library
+        read_only: true
+        bind:
+          create_host_path: false
+  caddy:
+    image: caddy:2.11.4-alpine
+    restart: unless-stopped
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?Set SITE_ADDRESS}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${DATA_ROOT}/caddy:/data
+      - ${DATA_ROOT}/caddy-config:/config
+    depends_on:
+      app:
+        condition: service_healthy
